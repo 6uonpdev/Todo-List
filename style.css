@@ -144,10 +144,6 @@ button:active {
     border-color: #667eea;
 }
 
-.add-box button {
-    padding: 12px 30px;
-}
-
 /* FILTER BOX */
 .filter-box {
     display: flex;

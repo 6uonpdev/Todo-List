@@ -22,8 +22,8 @@ function saveUsers() {
 document.getElementById("btn-login").onclick = () => {
     let email = document.getElementById("auth-email").value;
     let pass = document.getElementById("auth-pass").value;
-    if (!users[email]) return alert("Sai tài khoản");
-    if (users[email] !== pass) return alert("Sai mật khẩu");
+    if (!users[email]) return alert("Đăng nhập thất bại: không tìm thấy tài khoản");
+    if (users[email] !== pass) return alert("Đăng nhập thất bại: Sai mật khẩu");
     currentUser = email;
     localStorage.setItem("currentUser", email);
     showApp();
@@ -71,7 +71,7 @@ document.getElementById("add-btn").onclick = () => {
     let title = document.getElementById("task-input").value.trim();
     let deadline = document.getElementById("deadline-input").value;
 
-    if (!title) return alert("Nhập công việc");
+    if (!title) return alert("Vui lòng nhập công việc");
 
     tasks[currentUser].push({
         id: Date.now(),
@@ -182,8 +182,8 @@ function render() {
                 </div>
 
                 <div class="icons">
-                    <i class="fa-solid fa-pen-to-square" id="icon-btn" onclick="editTask(${t.id})"></i>
-                    <i class="fa-solid fa-trash-can" id="icon-btn" onclick="del(${t.id})"></i>
+                    <i class="fa-solid fa-pen-to-square" id="edit-icon-btn" onclick="editTask(${t.id})"></i>
+                    <i class="fa-solid fa-trash-can" id="delete-icon-btn" onclick="del(${t.id})"></i>
                 </div>
             </div>
             `;
