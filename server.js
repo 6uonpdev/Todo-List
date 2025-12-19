@@ -4,7 +4,7 @@ const bcrypt = require("bcryptjs");
 const { Pool } = require("pg");
 
 const app = express();
-const PORT = 3000;
+const PORT = 5432;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
