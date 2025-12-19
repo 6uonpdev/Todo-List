@@ -132,15 +132,16 @@ $('nlp-btn').onclick = async () => {
 /* ================= RENDER ================= */
 $('filter').onchange = $('filter-date').onchange = render;
 
-function formatDeadline(d) {
-  if (!d) return 'Không có';
-  const [date, time] = d.split('T');
-  if (!time || time === '00:00') return date;
-  let [h, m] = time.split(':');
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12 || 12;
-  return `${date} ${h}:${m} ${ampm}`;
+function formatDeadline(iso) {
+  if (!iso) return "Không có";
+
+  const d = new Date(iso);
+  return d.toLocaleString("vi-VN", {
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    hour12: false
+  });
 }
+
 
 function render() {
   const status = $('filter').value;

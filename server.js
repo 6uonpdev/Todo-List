@@ -14,8 +14,6 @@ const JWT_SECRET = process.env.JWT_SECRET || "CHANGE_THIS_SECRET_FOR_PRODUCTION"
 ===================== */
 app.use(cors());
 app.use(express.json());
-
-// serve frontend (index.html, script.js, style.css)
 app.use(express.static(path.join(__dirname)));
 
 /* =====================
@@ -63,15 +61,16 @@ app.post("/api/register", async (req, res) => {
       return res.status(400).json({ error: "Email đã tồn tại" });
 
     const hash = await bcrypt.hash(password, 10);
+
     await db.query(
-      "INSERT INTO users(email, password_hash) VALUES($1, $2)",
+      "INSERT INTO users(email, password_hash) VALUES ($1, $2)",
       [email, hash]
     );
 
-    res.json({ message: "Đăng ký thành công!" });
+    res.json({ message: "Đăng ký thành công" });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Database error" });
+    console.error("REGISTER ERROR:", err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -103,8 +102,8 @@ app.post("/api/login", async (req, res) => {
 
     res.json({ token, email });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Login error" });
+    console.error("LOGIN ERROR:", err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -116,8 +115,9 @@ app.get("/api/tasks", authenticate, async (req, res) => {
     const result = await db.query(
       `SELECT id,
               title,
-              due_date AS deadline,
-              completed
+              description,
+              completed,
+              deadline
        FROM tasks
        WHERE user_id = $1
        ORDER BY id DESC`,
@@ -135,14 +135,19 @@ app.get("/api/tasks", authenticate, async (req, res) => {
    CREATE TASK
 ===================== */
 app.post("/api/tasks", authenticate, async (req, res) => {
-  const { title, deadline } = req.body;
+  const { title, description, deadline } = req.body;
 
   try {
     const result = await db.query(
-      `INSERT INTO tasks(user_id, title, due_date)
-       VALUES ($1, $2, $3)
+      `INSERT INTO tasks(user_id, title, description, deadline)
+       VALUES ($1, $2, $3, $4)
        RETURNING id`,
-      [req.user.userId, title, deadline || null]
+      [
+        req.user.userId,
+        title,
+        description || null,
+        deadline ? new Date(deadline).toISOString() : null
+      ]
     );
 
     res.json({ id: result.rows[0].id });
@@ -152,20 +157,29 @@ app.post("/api/tasks", authenticate, async (req, res) => {
   }
 });
 
+
 /* =====================
    UPDATE TASK
 ===================== */
 app.put("/api/tasks/:id", authenticate, async (req, res) => {
-  const { title, deadline, completed } = req.body;
+  const { title, description, deadline, completed } = req.body;
 
   try {
     await db.query(
       `UPDATE tasks
        SET title = $1,
-           due_date = $2,
-           completed = $3
-       WHERE id = $4 AND user_id = $5`,
-      [title, deadline || null, completed, req.params.id, req.user.userId]
+           description = $2,
+           deadline = $3,
+           completed = $4
+       WHERE id = $5 AND user_id = $6`,
+      [
+        title,
+        description || null,
+        deadline || null,
+        completed,
+        req.params.id,
+        req.user.userId
+      ]
     );
 
     res.json({ success: true });
