@@ -1,14 +1,11 @@
 const express = require("express");
 const session = require("express-session");
 const bcrypt = require("bcryptjs");
-const mysql = require("mysql2");
+const { Pool } = require("pg");
 
 const app = express();
 const PORT = 3000;
 
-/* =======================
-   MIDDLEWARE
-======================= */
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(__dirname));
@@ -19,34 +16,25 @@ app.use(session({
     saveUninitialized: false
 }));
 
-/* =======================
-   MYSQL CONNECTION
-======================= */
-const db = mysql.createConnection({
+const db = new Pool({
     host: "localhost",
-    user: "root",
-    password: "",      // 👈 nếu có mật khẩu thì điền
-    database: "todo_app"
+    user: "postgres",
+    password: "123456",
+    database: "todo_app",
+    port: 5432
 });
 
-db.connect(err => {
-    if (err) {
-        console.error("❌ MySQL error:", err.message);
-        return;
-    }
-    console.log("✅ MySQL connected");
-});
+db.connect()
+    .then(client => {
+        console.log("PostgreSQL connected");
+        client.release();
+    })
+    .catch(err => console.error("PostgreSQL error:", err.message));
 
-/* =======================
-   TEST ROUTE
-======================= */
 app.get("/test", (req, res) => {
-    res.send("Backend OK 🚀");
+    res.send("Backend OK");
 });
 
-/* =======================
-   START SERVER
-======================= */
 app.listen(PORT, () => {
-    console.log(`🚀 Server chạy tại http://localhost:${PORT}`);
+    console.log(`Server chạy tại http://localhost:${PORT}`);
 });
