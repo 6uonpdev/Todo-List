@@ -1,283 +1,194 @@
-/* ============================================================
-   DATA STORAGE
-============================================================ */
-let currentUser = localStorage.getItem("currentUser") || null;
-let tasks = JSON.parse(localStorage.getItem("tasks") || "{}");
+/* ================= CONFIG & STATE ================= */
+const API = 'http://localhost:3000/api';
 
-// Mỗi user có danh sách riêng
-function save() {
-    localStorage.setItem("tasks", JSON.stringify(tasks));
+const state = {
+  token: localStorage.getItem('token'),
+  user: localStorage.getItem('currentUser'),
+  tasks: []
+};
+
+/* ================= HELPERS ================= */
+const $ = id => document.getElementById(id);
+
+function saveAuth(email, token) {
+  Object.assign(state, { user: email, token });
+  localStorage.setItem('token', token);
+  localStorage.setItem('currentUser', email);
 }
 
-/* ============================================================
-   AUTHENTICATION (GIẢ LẬP)
-============================================================ */
-// Giả lập database user trong localStorage
-let users = JSON.parse(localStorage.getItem("users") || "{}");
-
-function saveUsers() {
-    localStorage.setItem("users", JSON.stringify(users));
+function clearAuth() {
+  Object.assign(state, { user: null, token: null });
+  localStorage.clear();
 }
 
-document.getElementById("btn-login").onclick = () => {
-    let email = document.getElementById("auth-email").value;
-    let pass = document.getElementById("auth-pass").value;
-    if (!users[email]) return alert("Đăng nhập thất bại: không tìm thấy tài khoản");
-    if (users[email] !== pass) return alert("Đăng nhập thất bại: Sai mật khẩu");
-    currentUser = email;
-    localStorage.setItem("currentUser", email);
-    showApp();
+async function apiFetch(path, options = {}) {
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(state.token && { Authorization: `Bearer ${state.token}` })
+  };
+
+  const res = await fetch(API + path, { ...options, headers });
+
+  if (res.status === 401) {
+    alert('Phiên đăng nhập đã hết hạn');
+    clearAuth();
+    location.reload();
+    throw new Error('Unauthorized');
+  }
+
+  return res.json();
+}
+
+/* ================= AUTH ================= */
+$('btn-login').onclick = async () => {
+  const email = $('auth-email').value;
+  const password = $('auth-pass').value;
+  if (!email || !password) return alert('Nhập email và mật khẩu');
+
+  const data = await apiFetch('/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password })
+  });
+
+  if (data.error) return alert(data.error);
+  saveAuth(data.email, data.token);
+  showApp();
 };
 
-document.getElementById("btn-register").onclick = () => {
-    let email = document.getElementById("reg-email").value;
-    let pass = document.getElementById("reg-pass").value;
-    if (users[email]) return alert("Email đã tồn tại");
-    users[email] = pass;
-    saveUsers();
-    alert("Tạo tài khoản thành công!");
+$('btn-register').onclick = async () => {
+  const email = $('reg-email').value;
+  const password = $('reg-pass').value;
+  if (!email || !password) return alert('Nhập email và mật khẩu');
+
+  const data = await apiFetch('/register', {
+    method: 'POST',
+    body: JSON.stringify({ email, password })
+  });
+
+  if (data.error) return alert(data.error);
+  alert('Đăng ký thành công');
+  $('switch-login').click();
 };
 
-document.getElementById("switch-login").onclick = () => {
-    document.getElementById("register-container").classList.add("hidden");
-    document.getElementById("auth-container").classList.remove("hidden");
-};
-document.getElementById("switch-register").onclick = () => {
-    document.getElementById("auth-container").classList.add("hidden");
-    document.getElementById("register-container").classList.remove("hidden");
-};
+/* ================= UI ================= */
+$('switch-login').onclick = () => toggleAuth(true);
+$('switch-register').onclick = () => toggleAuth(false);
+
+function toggleAuth(showLogin) {
+  $('auth-container').classList.toggle('hidden', !showLogin);
+  $('register-container').classList.toggle('hidden', showLogin);
+}
 
 function showApp() {
-    document.getElementById("auth-container").classList.add("hidden");
-    document.getElementById("register-container").classList.add("hidden");
-    document.getElementById("app").classList.remove("hidden");
-
-    if (!tasks[currentUser]) tasks[currentUser] = [];
-    render();
+  $('auth-container').classList.add('hidden');
+  $('register-container').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  fetchTasks();
 }
 
-if (currentUser) showApp();
+if (state.token && state.user) showApp();
 
-/* ============================================================
-   FILTER EVENT LISTENERS
-============================================================ */
-document.getElementById("filter").addEventListener("change", render);
-document.getElementById("filter-date").addEventListener("change", render);
-
-/* ============================================================
-   ADD TASK MANUALLY
-============================================================ */
-document.getElementById("add-btn").onclick = () => {
-    let title = document.getElementById("task-input").value.trim();
-    let deadline = document.getElementById("deadline-input").value;
-
-    if (!title) return alert("Vui lòng nhập công việc");
-
-    tasks[currentUser].push({
-        id: Date.now(),
-        title,
-        deadline,
-        completed: false
-    });
-
-    document.getElementById("task-input").value = "";
-    document.getElementById("deadline-input").value = "";
-    save();
-    render();
-};
-
-/* ============================================================
-   ADD TASK USING OPENAI NLP (MÔ PHỎNG)
-============================================================ */
-document.getElementById("nlp-btn").onclick = async () => {
-    let text = document.getElementById("nlp-input").value.trim();
-    if (!text) return;
-
-    // =========================================
-    // GỌI API OPENAI (Bạn tự thay URL và KEY)
-    // =========================================
-    // Đây chỉ là DEMO — bạn cần backend thật
-    const mock = {
-        title: "Đi báo cáo project 1",
-        deadline: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-    };
-
-    tasks[currentUser].push({
-        id: Date.now(),
-        title: mock.title,
-        deadline: mock.deadline,
-        completed: false
-    });
-
-    document.getElementById("nlp-input").value = "";
-    save();
-    render();
-};
-
-/* ============================================================
-   FORMAT DEADLINE HELPER
-============================================================ */
-function formatDeadline(deadline) {
-    if (!deadline) return "Không có";
-    
-    // deadline format from datetime-local: "YYYY-MM-DDTHH:mm"
-    const parts = deadline.split("T");
-    const date = parts[0]; // YYYY-MM-DD
-    const time = parts[1]; // HH:mm
-    
-    // If no time is provided, just show the date
-    if (!time) {
-        return date;
-    }
-    
-    // If time is provided (00:00 is considered as time not set)
-    if (time === "00:00") {
-        return date;
-    }
-    
-    // Convert to 12-hour format with AM/PM
-    const [hours, minutes] = time.split(":");
-    let hour12 = parseInt(hours);
-    const ampm = hour12 >= 12 ? "PM" : "AM";
-    if (hour12 > 12) {
-        hour12 -= 12;
-    } else if (hour12 === 0) {
-        hour12 = 12;
-    }
-    
-    const formattedTime = `${String(hour12).padStart(2, "0")}:${minutes} ${ampm}`;
-    return `${date} ${formattedTime}`;
+/* ================= TASK API ================= */
+async function fetchTasks() {
+  const data = await apiFetch('/tasks');
+  state.tasks = data.tasks || [];
+  render();
 }
 
-/* ============================================================
-   RENDER TASK LIST
-============================================================ */
+$('add-btn').onclick = async () => {
+  const title = $('task-input').value.trim();
+  const deadline = $('deadline-input').value;
+  if (!title) return alert('Nhập công việc');
+
+  await apiFetch('/tasks', {
+    method: 'POST',
+    body: JSON.stringify({ title, deadline })
+  });
+
+  $('task-input').value = '';
+  $('deadline-input').value = '';
+  fetchTasks();
+};
+
+/* ================= NLP ================= */
+$('nlp-btn').onclick = async () => {
+  const text = $('nlp-input').value.trim();
+  if (!text) return;
+
+  const data = await apiFetch('/nlp', {
+    method: 'POST',
+    body: JSON.stringify({ text })
+  });
+
+  await apiFetch('/tasks', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  });
+
+  $('nlp-input').value = '';
+  fetchTasks();
+};
+
+/* ================= RENDER ================= */
+$('filter').onchange = $('filter-date').onchange = render;
+
+function formatDeadline(d) {
+  if (!d) return 'Không có';
+  const [date, time] = d.split('T');
+  if (!time || time === '00:00') return date;
+  let [h, m] = time.split(':');
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${date} ${h}:${m} ${ampm}`;
+}
+
 function render() {
-    let list = tasks[currentUser];
-    let filterVal = document.getElementById("filter").value;
-    let filterDateVal = document.getElementById("filter-date").value;
-    let html = "";
-    list
-        .filter(t => {
-            if (filterVal === "completed") return t.completed;
-            if (filterVal === "pending") return !t.completed;
-            return true;
-        })
-        .filter(t => {
-            if (!filterDateVal) return true;
-            return t.deadline && t.deadline.startsWith(filterDateVal);
-        })
-        .forEach(t => {
-            html += `
-            <div class="task-card">
-                <div class="task-left">
-                    <input type="checkbox" ${t.completed ? "checked" : ""}
-                        onclick="toggle(${t.id})" />
-                    <div>
-                        <div class="${t.completed ? "completed" : ""}">
-                            ${t.title}
-                        </div>
-                        <small>⌛ ${formatDeadline(t.deadline)}</small>
-                    </div>
-                </div>
+  const status = $('filter').value;
+  const date = $('filter-date').value;
 
-                <div class="icons">
-                    <i class="fa-solid fa-pen-to-square" id="edit-icon-btn" onclick="editTask(${t.id})"></i>
-                    <i class="fa-solid fa-trash-can" id="delete-icon-btn" onclick="del(${t.id})"></i>
-                </div>
-            </div>
-            `;
-        });
-
-    document.getElementById("task-list").innerHTML = html;
-}
-
-/* ============================================================
-   TASK OPERATIONS
-============================================================ */
-function toggle(id) {
-    let t = tasks[currentUser].find(x => x.id === id);
-    t.completed = !t.completed;
-    save();
-    render();
-}
-
-function del(id) {
-    tasks[currentUser] = tasks[currentUser].filter(x => x.id !== id);
-    save();
-    render();
-}
-
-function editTask(id) {
-    let t = tasks[currentUser].find(x => x.id === id);
-    
-    // Create a modal for editing
-    const modal = document.createElement("div");
-    modal.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0,0,0,0.5);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        z-index: 1000;
-    `;
-    
-    const editBox = document.createElement("div");
-    editBox.style.cssText = `
-        background: white;
-        padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-        width: 90%;
-        max-width: 400px;
-    `;
-    
-    editBox.innerHTML = `
-        <h3>Sửa công việc</h3>
-        <label>Tên công việc:</label>
-        <input id="edit-title" type="text" value="${t.title}" style="width: 100%; padding: 8px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box;" />
-        
-        <label>Thời gian nhắc nhở:</label>
-        <input id="edit-deadline" type="datetime-local" value="${t.deadline}" style="width: 100%; padding: 8px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box;" />
-        
-        <div style="display: flex; gap: 10px; justify-content: flex-end;">
-            <button id="cancel-edit" style="background: #ccc; color: #333;">Hủy</button>
-            <button id="save-edit" style="background: #4a8af4; color: white;">Lưu</button>
+  $('task-list').innerHTML = state.tasks
+    .filter(t =>
+      status === 'completed' ? t.completed :
+      status === 'pending' ? !t.completed : true
+    )
+    .filter(t => !date || (t.deadline || '').startsWith(date))
+    .map(t => `
+      <div class="task-card">
+        <div class="task-left">
+          <input type="checkbox" ${t.completed ? 'checked' : ''} onclick="toggle(${t.id})">
+          <div>
+            <div class="${t.completed ? 'completed' : ''}">${t.title}</div>
+            <small>⌛ ${formatDeadline(t.deadline)}</small>
+          </div>
         </div>
-    `;
-    
-    modal.appendChild(editBox);
-    document.body.appendChild(modal);
-    
-    document.getElementById("save-edit").onclick = () => {
-        const newTitle = document.getElementById("edit-title").value.trim();
-        const newDeadline = document.getElementById("edit-deadline").value;
-        
-        if (!newTitle) {
-            alert("Nhập tên công việc");
-            return;
-        }
-        
-        t.title = newTitle;
-        t.deadline = newDeadline;
-        save();
-        render();
-        modal.remove();
-    };
-    
-    document.getElementById("cancel-edit").onclick = () => {
-        modal.remove();
-    };
+        <div class="icons">
+          <i class="fa-solid fa-pen-to-square" onclick="editTask(${t.id})"></i>
+          <i class="fa-solid fa-trash-can" onclick="del(${t.id})"></i>
+        </div>
+      </div>
+    `).join('');
 }
 
-/* ============================================================
-   LOGOUT
-============================================================ */
-document.getElementById("logout-btn").onclick = () => {
-    localStorage.removeItem("currentUser");
-    location.reload();
+/* ================= TASK OPS ================= */
+async function toggle(id) {
+  const t = state.tasks.find(x => x.id === id);
+  await apiFetch(`/tasks/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ ...t, completed: !t.completed })
+  });
+  fetchTasks();
+}
+
+async function del(id) {
+  await apiFetch(`/tasks/${id}`, { method: 'DELETE' });
+  fetchTasks();
+}
+
+/* ================= LOGOUT ================= */
+$('logout-btn').onclick = () => {
+  clearAuth();
+  location.reload();
 };
+
+/* expose for inline html */
+Object.assign(window, { toggle, del, editTask });
