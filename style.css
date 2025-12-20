@@ -239,6 +239,18 @@ button:active {
     gap: 12px;
 }
 
+.edit-input {
+  font-size: 16px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  width: 100%;
+}
+.edit-input[type="datetime-local"] {
+  margin-top: 4px;
+  font-size: 14px;
+}
+
 #icon-btn {
     cursor: pointer;
     font-size: 20px;

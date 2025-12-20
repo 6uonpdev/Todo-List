@@ -137,11 +137,9 @@ function formatDeadline(iso) {
 
   const d = new Date(iso);
   return d.toLocaleString("vi-VN", {
-    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     hour12: false
   });
 }
-
 
 function render() {
   const status = $('filter').value;
@@ -154,16 +152,18 @@ function render() {
     )
     .filter(t => !date || (t.deadline || '').startsWith(date))
     .map(t => `
-      <div class="task-card">
+      <div class="task-card" data-id="${t.id}">
         <div class="task-left">
           <input type="checkbox" ${t.completed ? 'checked' : ''} onclick="toggle(${t.id})">
           <div>
-            <div class="${t.completed ? 'completed' : ''}">${t.title}</div>
-            <small>⌛ ${formatDeadline(t.deadline)}</small>
+            <div class="task-title ${t.completed ? 'completed' : ''}">
+              ${t.title}
+            </div>
+            <small class="task-deadline">⌛ ${formatDeadline(t.deadline)}</small>
           </div>
         </div>
         <div class="icons">
-          <i class="fa-solid fa-pen-to-square" onclick="editTask(${t.id})"></i>
+          <i class="fa-solid fa-pen-to-square" onclick="editTask(this)"></i>
           <i class="fa-solid fa-trash-can" onclick="del(${t.id})"></i>
         </div>
       </div>
@@ -184,6 +184,104 @@ async function del(id) {
   await apiFetch(`/tasks/${id}`, { method: 'DELETE' });
   fetchTasks();
 }
+
+/* ================= INLINE EDIT ================= */
+function editTask(icon) {
+  const card = icon.closest('.task-card');
+  const id = Number(card.dataset.id);
+
+  const titleDiv = card.querySelector('.task-title');
+  const deadlineDiv = card.querySelector('.task-deadline');
+
+  const oldTitle = titleDiv.innerText;
+  const oldDeadlineText = deadlineDiv.innerText.replace('⌛', '').trim();
+
+  const task = state.tasks.find(t => t.id === id);
+
+  /* ===== title input ===== */
+  const titleInput = document.createElement('input');
+  titleInput.type = 'text';
+  titleInput.value = oldTitle;
+  titleInput.className = 'edit-input';
+
+  titleDiv.replaceWith(titleInput);
+
+  /* ===== deadline input ===== */
+  const deadlineInput = document.createElement('input');
+  deadlineInput.type = 'datetime-local';
+  deadlineInput.className = 'edit-input';
+
+  if (task.deadline) {
+  const d = new Date(task.deadline);
+
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+
+  deadlineInput.value = `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+}
+
+
+  deadlineDiv.replaceWith(deadlineInput);
+
+  titleInput.focus();
+
+  /* ===== icon save ===== */
+  icon.classList.remove('fa-pen-to-square');
+  icon.classList.add('fa-floppy-disk');
+
+  icon.onclick = () =>
+    saveEdit(icon, id, titleInput, deadlineInput, oldTitle, oldDeadlineText);
+
+  /* ===== keyboard ===== */
+  titleInput.onkeydown = deadlineInput.onkeydown = e => {
+    if (e.key === 'Enter')
+      saveEdit(icon, id, titleInput, deadlineInput, oldTitle, oldDeadlineText);
+    if (e.key === 'Escape')
+      cancelEdit(icon, titleInput, deadlineInput, oldTitle, oldDeadlineText);
+  };
+}
+
+async function saveEdit(icon, id, titleInput, deadlineInput, oldTitle, oldDeadlineText) {
+  const newTitle = titleInput.value.trim();
+  if (!newTitle) return alert('Tiêu đề không được rỗng');
+
+  const newDeadline = deadlineInput.value || null;
+
+  const task = state.tasks.find(t => t.id === id);
+
+  await apiFetch(`/tasks/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      ...task,
+      title: newTitle,
+      deadline: newDeadline
+    })
+  });
+
+  fetchTasks();
+}
+
+
+function cancelEdit(icon, titleInput, deadlineInput, oldTitle, oldDeadline) {
+  const titleDiv = document.createElement('div');
+  titleDiv.className = 'task-title';
+  titleDiv.innerText = oldTitle;
+
+  const deadlineDiv = document.createElement('small');
+  deadlineDiv.className = 'task-deadline';
+  deadlineDiv.innerText = `⌛ ${oldDeadline}`;
+
+  titleInput.replaceWith(titleDiv);
+  deadlineInput.replaceWith(deadlineDiv);
+
+  icon.classList.remove('fa-floppy-disk');
+  icon.classList.add('fa-pen-to-square');
+  icon.onclick = () => editTask(icon);
+}
+
 
 /* ================= LOGOUT ================= */
 $('logout-btn').onclick = () => {

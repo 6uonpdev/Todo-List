@@ -80,7 +80,7 @@ app.post("/api/register", async (req, res) => {
 app.post("/api/login", async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password)
-    return res.status(400).json({ error: "Vui lòng nhập email và mật khẩu" });
+    return res.status(400).json({ error: "Vui lòng nhập đầy đủ email và mật khẩu" });
 
   try {
     const result = await db.query(

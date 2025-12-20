@@ -11,8 +11,8 @@ CREATE TABLE tasks (
     title VARCHAR(255) NOT NULL,
     description TEXT,
     completed BOOLEAN DEFAULT FALSE,
-    due_date DATE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deadline TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT now(),
 
     CONSTRAINT fk_user
         FOREIGN KEY (user_id)
@@ -20,8 +20,10 @@ CREATE TABLE tasks (
         ON DELETE CASCADE
 );
 
-SELECT * FROM public.tasks
+SELECT * FROM public.users
 ORDER BY id ASC LIMIT 100
 
-INSERT INTO users (username, email, password_hash)
-VALUES ('hoangduong', 'duonghoang@gmail.com', '123456');
+select * from public.tasks
+order by id asc limit 100
+
+
