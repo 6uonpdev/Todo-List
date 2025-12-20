@@ -1,5 +1,5 @@
 /* ================= CONFIG & STATE ================= */
-const API = 'http://localhost:3000/api';
+const API = `${location.origin}/api`;
 
 const state = {
   token: localStorage.getItem('token'),
