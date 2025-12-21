@@ -146,7 +146,7 @@ app.post("/api/tasks", authenticate, async (req, res) => {
         req.user.userId,
         title,
         description || null,
-        deadline ? new Date(deadline).toISOString() : null
+        deadline || null   
       ]
     );
 
@@ -157,7 +157,6 @@ app.post("/api/tasks", authenticate, async (req, res) => {
   }
 });
 
-
 /* =====================
    UPDATE TASK
 ===================== */
@@ -167,16 +166,16 @@ app.put("/api/tasks/:id", authenticate, async (req, res) => {
   try {
     await db.query(
       `UPDATE tasks
-       SET title = $1,
-           description = $2,
-           deadline = $3,
-           completed = $4
+       SET title = COALESCE($1, title),
+           description = COALESCE($2, description),
+           deadline = COALESCE($3, deadline),
+           completed = COALESCE($4, completed)
        WHERE id = $5 AND user_id = $6`,
       [
-        title,
-        description || null,
-        deadline || null,
-        completed,
+        title ?? null,
+        description ?? null,
+        deadline ?? null,
+        completed ?? null,
         req.params.id,
         req.user.userId
       ]

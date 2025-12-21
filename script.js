@@ -173,12 +173,24 @@ function render() {
 /* ================= TASK OPS ================= */
 async function toggle(id) {
   const t = state.tasks.find(x => x.id === id);
-  await apiFetch(`/tasks/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify({ ...t, completed: !t.completed })
-  });
-  fetchTasks();
+  if (!t) return;
+
+  t.completed = !t.completed;
+  render();
+
+  try {
+    await apiFetch(`/tasks/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ completed: t.completed })
+    });
+  } catch (err) {
+    // rollback nếu lỗi
+    t.completed = !t.completed;
+    render();
+    alert('Không thể cập nhật trạng thái');
+  }
 }
+
 
 async function del(id) {
   await apiFetch(`/tasks/${id}`, { method: 'DELETE' });

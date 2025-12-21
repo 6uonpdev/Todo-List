@@ -233,6 +233,23 @@ button:active {
     text-decoration: line-through;
     color: #bbb;
 }
+.task-title.completed {
+  opacity: 0.3;              /* làm mờ */
+  text-decoration: line-through;
+  color: #888;
+}
+
+.task-card:has(.task-title.completed) {
+  opacity: 0.6;
+}
+
+.task-card:has(.task-title.completed) .icons i {
+  opacity: 0.3;
+}
+
+.task-card:has(.task-title.completed):hover {
+  opacity: 0.7;
+}
 
 .icons {
     display: flex;
