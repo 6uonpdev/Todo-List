@@ -7,6 +7,14 @@ const state = {
   tasks: []
 };
 
+function normalizeAITask(aiData, fallbackText) {
+  return {
+    title: aiData?.title?.trim() || fallbackText || "Công việc mới",
+    description: aiData?.description || null,
+    deadline: aiData?.deadline || null
+  };
+}
+
 /* ================= HELPERS ================= */
 const $ = id => document.getElementById(id);
 let otpCooldown = 60;
@@ -160,7 +168,22 @@ $('btn-verify-otp').onclick = async () => {
   alert('Đăng ký thành công!');
   $('switch-login').click();
 };
+/* ================= XỬ LÍ THÔNG TIN NHẬP VÀO TỪ TÍNH NĂNG AI ================= */
+async function createTaskFromAI(text) {
+  const aiResult = await apiFetch('/nlp', {
+    method: 'POST',
+    body: JSON.stringify({ text })
+  });
 
+  const taskData = normalizeAITask(aiResult, text);
+
+  await apiFetch('/tasks', {
+    method: 'POST',
+    body: JSON.stringify(taskData)
+  });
+
+  fetchTasks();
+}
 
 
 /* ================= UI ================= */
@@ -208,18 +231,9 @@ $('nlp-btn').onclick = async () => {
   const text = $('nlp-input').value.trim();
   if (!text) return;
 
-  const data = await apiFetch('/nlp', {
-    method: 'POST',
-    body: JSON.stringify({ text })
-  });
-
-  await apiFetch('/tasks', {
-    method: 'POST',
-    body: JSON.stringify(data)
-  });
+  await createTaskFromAI(text);
 
   $('nlp-input').value = '';
-  fetchTasks();
 };
 
 /* ================= RENDER ================= */

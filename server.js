@@ -24,6 +24,37 @@ const mailer = nodemailer.createTransport({
   }
 });
 
+/* =====================
+   GỌI GEMINI
+===================== */
+async function callGemini(prompt) {
+  const res = await fetch(
+    "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=" +
+      process.env.GEMINI_API_KEY,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: data.title || "Công việc mới",
+        description: data.description || null,
+        deadline: data.deadline || null
+    })
+({
+        contents: [
+          { role: "user", parts: [{ text: prompt }] }
+        ]
+      })
+    }
+  );
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.error?.message || "Gemini error");
+  }
+
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+}
 
 /* =====================
    MIDDLEWARE
@@ -64,7 +95,12 @@ function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 app.post("/api/register/request-otp", async (req, res) => {
-  const { email, password } = req.body;
+
+  let { title, description, deadline } = req.body;
+
+  if (!title || title.trim() === "") {
+    title = "Công việc mới";
+  }
   if (!email || !password)
     return res.status(400).json({ error: "Thiếu email hoặc mật khẩu" });
 
@@ -348,18 +384,88 @@ cron.schedule("* * * * *", async () => {
 
 
 /* =====================
-   NLP MOCK
+   NLP 
 ===================== */
-app.post("/api/nlp", authenticate, (req, res) => {
+app.post("/api/nlp", authenticate, async (req, res) => {
   const { text } = req.body;
-  if (!text)
+  if (!text) {
     return res.status(400).json({ error: "Text is required" });
+  }
 
-  res.json({
-    title: text.slice(0, 120),
-    deadline: new Date(Date.now() + 86400000).toISOString()
+  // BƯỚC 1: Lấy thời gian thực TẠI THỜI ĐIỂM GỌI API
+  // Sử dụng toLocaleString để đảm bảo đúng timezone Việt Nam
+  const nowVN = new Date().toLocaleString("en-US", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    hour12: false,
+    weekday: 'long', // Thêm thứ trong tuần để AI tính "thứ 2 tuần sau" chuẩn hơn
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
   });
+  // nowVN sẽ có dạng: "Friday, 01/26/2024, 14:30:00" 
+
+  try {
+    const prompt = `
+Bạn là một trợ lý ảo quản lý công việc (Todo API).
+Nhiệm vụ: Phân tích câu nói của người dùng và trích xuất thông tin thời gian dựa trên ngữ cảnh hiện tại.
+
+THÔNG TIN QUAN TRỌNG (Context):
+- Thời gian hiện tại chính xác là: ${nowVN} (Múi giờ GMT+7).
+- Ngày tháng năm hiện tại là: ${new Date().getFullYear()}.
+- Mọi mốc thời gian (hôm nay, ngày mai, cuối tuần) PHẢI tính toán dựa trên thời gian này.
+- Nếu không xác định được title, hãy tạo title ngắn gọn từ nội dung người dùng.
+
+
+INPUT: "${text}"
+
+OUTPUT JSON FORMAT (Chỉ trả về JSON thuần, không markdown):
+{
+  "title": "Tên công việc ngắn gọn",
+  "description": "Chi tiết nếu có, hoặc null",
+  "deadline": "ISO 8601 String (YYYY-MM-DDTHH:mm:ss+07:00)",
+  "due_date": "YYYY-MM-DD HH:mm:ss",
+  "reminded": false
+}
+`;
+    const aiText = await callGemini(prompt);
+
+    // LẤY JSON TỪ CHUỖI
+    const match = aiText.match(/\{[\s\S]*\}/);
+
+    if (!match) {
+      return res.status(500).json({
+        error: "AI response does not contain JSON",
+        raw: aiText
+      });
+    }
+
+    let data;
+    try {
+      data = JSON.parse(match[0]);
+    } catch (err) {
+      return res.status(500).json({
+        error: "AI JSON parse failed",
+        raw: match[0]
+      });
+    }
+
+    res.json({
+      title: data.title || text.slice(0, 255),
+      description: data.description || null,
+      deadline: data.deadline || null,
+      due_date: data.due_date || null,
+      reminded: data.reminded ?? false
+    });
+
+  } catch (err) {
+    console.error("NLP ERROR:", err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
+
 
 /* =====================
    START SERVER
