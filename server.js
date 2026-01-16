@@ -343,68 +343,77 @@ cron.schedule("* * * * *", async () => {
 /* =====================
   AI NLP (Gemini)
 ===================== */
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const { GoogleGenAI } = require("@google/genai");
+
+const client = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY
+});
 
 app.post("/api/nlp", authenticate, async (req, res) => {
   const { text } = req.body;
   if (!text) return res.status(400).json({ error: "Text is required" });
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-    // Lấy thời gian hiện tại để AI hiểu "ngày mai", "tuần sau" là bao giờ
+    // Lấy thời gian hiện tại VN
     const nowVN = new Date().toLocaleString("vi-VN", {
-  timeZone: "Asia/Ho_Chi_Minh"
-});
-;
-    
+      timeZone: "Asia/Ho_Chi_Minh"
+    });
+
     const prompt = `
-      Bạn là một trợ lý ảo quản lý công việc (Todo API).
-Nhiệm vụ: Phân tích câu nói của người dùng và trích xuất thông tin thời gian dựa trên ngữ cảnh hiện tại.
+Bạn là trợ lý quản lý công việc (Todo API).
 
-THÔNG TIN QUAN TRỌNG (Context):
-- Thời gian hiện tại chính xác là: ${nowVN} (Múi giờ GMT+7) 
-- Ngày tháng năm hiện tại là: ${new Date().getFullYear()}.
-- Mọi mốc thời gian (hôm nay, ngày mai, cuối tuần) PHẢI tính toán dựa trên thời gian này.
-- Nếu không xác định được title, hãy tạo title ngắn gọn từ nội dung người dùng.
+THỜI GIAN HIỆN TẠI:
+${nowVN} (GMT+7)
 
+NHIỆM VỤ:
+- Phân tích câu nói
+- Trích xuất deadline chính xác
+- Nếu không có title rõ ràng -> tự tạo title ngắn gọn
 
-INPUT: "${text}"
+INPUT:
+"${text}"
 
-OUTPUT JSON FORMAT (Chỉ trả về JSON thuần, không markdown):
+OUTPUT (CHỈ JSON, KHÔNG MARKDOWN):
 {
-  "title": "Tên công việc ngắn gọn",
-  "description": "Chi tiết nếu có, hoặc null",
-  "deadline": "ISO 8601 String (YYYY-MM-DDTHH:mm:ss+07:00)",
+  "title": "Tên công việc",
+  "description": null,
+  "deadline": "ISO 8601 (YYYY-MM-DDTHH:mm:ss+07:00)",
   "due_date": "YYYY-MM-DD HH:mm:ss",
   "reminded": false
 }
-    `;
+`;
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    let textResponse = response.text();
+    const interaction = await client.interactions.create({
+      model: "gemini-2.5-flash",
+      input: prompt
+    });
 
-    // Làm sạch chuỗi nếu AI lỡ trả về format markdown (```json ...)
-    textResponse = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+    const aiText =
+      interaction.outputs[interaction.outputs.length - 1].text;
 
-    const data = JSON.parse(textResponse);
+    let clean = aiText
+      .replace(/```json/g, "")
+      .replace(/```/g, "")
+      .trim();
+
+    const data = JSON.parse(clean);
 
     res.json({
-      title: data.title || text, // Fallback nếu AI không tách được title
-      deadline: data.deadline
+      title: data.title || text,
+      deadline: data.deadline || null
     });
 
   } catch (err) {
     console.error("NLP ERROR:", err);
-    // Fallback về logic cũ nếu AI lỗi hoặc hết quota
+
     res.json({
       title: text,
       deadline: null
     });
   }
 });
+
 //route test
 app.get("/test-db", async (req, res) => {
   try {
